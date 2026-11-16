@@ -8,7 +8,7 @@
 <style>
 :root{--board:#2f5d48;--chalk:#f3f2e6;--wood:#a9744a;--pen:#f3f2e6}
 *{box-sizing:border-box;margin:0}
-body{background:#efe6d3;overflow-x:clip;min-height:100vh;padding:clamp(10px,3vw,36px);font-family:Gaegu,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:var(--chalk);display:flex;flex-direction:column}
+body{background:#efe6d3;min-height:100vh;padding:clamp(10px,3vw,36px);font-family:Gaegu,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:var(--chalk);display:flex;flex-direction:column}
 button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 a{color:inherit}
 /* 칠판 */
@@ -29,7 +29,7 @@ h1 u{text-decoration:underline wavy #f6dc7a;text-underline-offset:8px;color:#f6d
 .sub{font-size:20px;opacity:.8;pointer-events:none;margin-top:8px}
 /* 자석으로 붙인 종이 */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:26px 22px;margin-top:8px}
-.card{background:linear-gradient(#fff,color-mix(in srgb,var(--c) 22%,#fff));color:#333;padding:22px 12px 12px;border-radius:2px;box-shadow:2px 4px 8px #0005;
+.card{background:#fff;background:linear-gradient(#fff,color-mix(in srgb,var(--c) 22%,#fff));color:#333;padding:22px 12px 12px;border-radius:2px;box-shadow:2px 4px 8px #0005;
   display:flex;flex-direction:column;gap:4px;text-align:center;position:relative;transition:.2s;rotate:1.5deg}
 .card:nth-child(3n){rotate:-2deg}.card:nth-child(4n+2){rotate:-.8deg}.card:nth-child(5n){rotate:2.4deg}
 .card::before{content:"";position:absolute;top:-9px;left:50%;translate:-50%;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff9,transparent 40%),var(--c);box-shadow:0 2px 3px #0006;filter:saturate(1.6) brightness(.9)}
@@ -59,10 +59,10 @@ dialog p{font-size:21px;line-height:1.5;margin:8px 0 14px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 /* 3D 교실: 바닥 + 책상 + 캐릭터 */
 .roomhint{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:#7a6a48;font-size:19px;margin:34px 6px 8px}
-.roomwrap{overflow-x:clip}
+.roomwrap{overflow:hidden;overflow:clip visible;padding-top:36px;margin-top:-36px}
 .room{position:relative;height:calc(var(--s,1)*720px);perspective:calc(var(--s,1)*1800px);perspective-origin:50% 0}
 .fl{position:absolute;left:50%;top:0;width:520px;height:720px;margin-left:-260px;transform-origin:50% 0;transform:scale3d(var(--s,1),var(--s,1),var(--s,1)) rotateX(45deg);transform-style:preserve-3d;
-  background:repeating-linear-gradient(90deg,#dccba6 0 64px,#cdbb92 64px 65px);border:6px solid #b39b6c;border-top-width:14px;box-sizing:content-box;margin-left:-266px;cursor:pointer;box-shadow:0 30px 40px #0002}
+  background:repeating-linear-gradient(90deg,#dccba6 0 64px,#cdbb92 64px 65px);border:6px solid #b39b6c;border-top-width:14px;box-sizing:content-box;margin-left:-266px;cursor:pointer;touch-action:manipulation}
 .desk{position:absolute;transform:translateZ(2px);width:64px;height:54px;padding:0;border-radius:4px 4px 10px 10px;
   background:linear-gradient(#c9975b 0 28px,#a87540 28px 33px,transparent 33px 38px,#8fa3b8 38px) center/100% 100% no-repeat,none;clip-path:polygon(0 0,100% 0,100% 33px,76% 33px,76% 100%,24% 100%,24% 33px,0 33px)}
 .desk:hover,.desk:focus-visible{filter:brightness(1.15);outline:0}
@@ -208,7 +208,7 @@ const AVATARS = ["🧑‍🎓", "🐱", "🐶", "🐰", "🦊", "🐻", "🐧", 
 const SEATS = [];   // 5열 × 8줄 = 40석, 좌표는 의자 위치
 for (let r = 0; r < 8; r++) for (let c = 0; c < 5; c++) SEATS.push({x: 60 + c * 100, y: 130 + r * 74});
 const room = $("room"), fl = $("fl"), joindlg = $("joindlg"), clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const fitRoom = () => room.style.setProperty("--s", Math.min(1.1, room.clientWidth / 790));
+const fitRoom = () => room.style.setProperty("--s", Math.min(1.1, room.clientWidth / 790, Math.max(.45, (innerHeight - 70) / 720)));
 fitRoom(); addEventListener("resize", fitRoom);
 SEATS.forEach((p, i) => {
   const d = document.createElement("button");
