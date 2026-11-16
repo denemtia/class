@@ -319,6 +319,9 @@ if (FIREBASE_DB_URL) (async () => {
     db.onChildRemoved(all, s => s.key !== myId && drop(s.key));
     net = {put() { if (me) { db.onDisconnect(mine).remove(); db.set(mine, {...profile, ...state()}); } }};
     db.onValue(db.ref(d, ".info/connected"), s => s.val() && net.put());
+    // 페이지를 떠나면 바로 지우고(서버 감지는 1분쯤 걸림), 뒤로가기로 돌아오면 다시 등록
+    addEventListener("pagehide", () => db.remove(mine));
+    addEventListener("pageshow", e => e.persisted && net.put());
     // 목적지가 바뀔 때만, 최대 초당 5번 전송 → 40명이어도 무료 한도 안에서 여유
     setInterval(() => { if (!me) return; const v = state(), key = JSON.stringify(v); if (key !== sent) { sent = key; db.update(mine, v); } }, 200);
   } catch (e) { console.warn("실시간 연결 실패 — 혼자 모드로 동작합니다", e); }
