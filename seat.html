@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>자리배치 — MY LAB</title>
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--board:#2f5d48;--chalk:#f3f2e6;--wood:#a9744a}
+*{box-sizing:border-box;margin:0}
+body{background:#efe6d3;min-height:100vh;padding:clamp(8px,2vw,28px);font-family:Gaegu,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:var(--chalk);font-size:19px}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:1.5px solid #f3f2e699;border-radius:8px;padding:3px 12px}
+button:hover{background:#ffffff1a}button:disabled{opacity:.4;cursor:default}
+button.primary{background:#fffbe6;color:#333;border-color:#fffbe6;font-weight:700}
+select,input{background:#0003;border:1.5px solid #f3f2e699;border-radius:8px;padding:3px 8px}
+select option{color:#333}
+a{color:inherit}
+.board{border:14px solid var(--wood);border-image:linear-gradient(#b98356,#8d5c36) 1;background:var(--board);box-shadow:0 14px 30px #5a40222e,inset 0 0 60px #0004;padding:clamp(12px,2.4vw,28px);min-height:calc(100vh - 56px)}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+h1{font-size:clamp(30px,5vw,46px)}h1 u{color:#f6dc7a;text-decoration:underline wavy #f6dc7a;text-underline-offset:7px}
+.tools{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;border-top:2px dashed #f3f2e655;border-bottom:2px dashed #f3f2e655;padding:10px 0;margin-bottom:16px}
+.tools label{white-space:nowrap}.tools input[type=number]{width:58px}
+.sep{flex-basis:100%;height:0}
+#msg{min-height:1.2em;color:#f6dc7a}
+main{display:grid;grid-template-columns:250px 1fr;gap:22px;align-items:start}
+aside textarea{width:100%;height:230px;background:#fffbe6;color:#333;border:0;border-radius:2px;padding:10px;font-size:18px;box-shadow:2px 4px 8px #0005;resize:vertical}
+aside h2{font-size:22px;margin:14px 0 6px}
+aside p{font-size:16px;opacity:.75;margin:4px 0 8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:#fff;color:#333;border:0;border-radius:99px;padding:1px 10px;font-size:17px}
+.teacher{width:150px;margin:0 auto 26px;text-align:center;background:#8d5c36;border-radius:6px;padding:6px;box-shadow:0 4px 0 #6e4526}
+.groups{display:flex;flex-wrap:wrap;justify-content:center;gap:28px 34px}
+.group h3{font-size:19px;text-align:center;margin-bottom:6px;opacity:.85}
+/* 자리 순서 1 4 / 2 5 / 3 6: 위에서 아래로 채우고 다음 줄로 */
+.grid{display:grid;grid-template-rows:repeat(3,auto);grid-auto-flow:column;gap:7px 5px}
+.seat{width:108px;height:56px;background:#c9975b;color:#2b1d10;border:0;border-bottom:6px solid #a87540;border-radius:5px;padding:2px 4px;font-size:19px;line-height:1.1;position:relative;overflow:hidden}
+.seat small{display:block;font:700 11px Arial,sans-serif;opacity:.6}
+.seat.M{border-bottom-color:#4f86dd}.seat.F{border-bottom-color:#e0688f}
+.seat.empty{background:#c9975b55;color:#f3f2e6aa;border-bottom-color:#a8754055}
+.seat.lock::after{content:"🔒";position:absolute;right:2px;top:1px;font-size:12px}
+.sel{outline:3px solid #f6dc7a;outline-offset:2px}
+@media(max-width:760px){main{grid-template-columns:1fr}.seat{width:84px;font-size:17px}}
+@media print{
+  body{background:#fff;padding:0;color:#000}.board{border:0;box-shadow:none;background:#fff;min-height:0}
+  .noprint,aside{display:none!important}main{display:block}h1 u{color:#000;text-decoration:none}
+  .teacher{background:#fff;border:1.5px solid #000;box-shadow:none;color:#000}
+  .seat,.seat.empty{background:#fff;color:#000;border:1.5px solid #000}.seat.empty{color:#fff}.seat.lock::after{content:""}.sel{outline:0}
+  .group h3{color:#000}.group{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="board">
+  <header>
+    <h1>자리배치 : <u id="title">우리 반</u></h1>
+    <a class="noprint" href="./">← 칠판으로 돌아가기</a>
+  </header>
+
+  <div class="tools noprint">
+    <label>분단 수 <input id="G" type="number" min="1" max="7"></label>
+    <label>분단당 <select id="unit"><option>2<option>3<option>4<option>5<option selected>6</select>명</label>
+    <select id="mode" aria-label="배치 방식"><option value="order">명단 순서대로<option value="random">무작위<option value="alt">남녀 번갈아</select>
+    <button class="primary" id="arrange">배치하기</button>
+    <button id="undo">↶ 되돌리기</button>
+    <button id="lock">🔒 고정/해제</button>
+    <button id="clear">자리 비우기</button>
+    <button id="print">🖨 인쇄</button>
+    <span class="sep"></span>
+    <label>선생님 키 <input id="key" type="password" autocomplete="off" size="14"></label>
+    <button class="primary" id="send">교실에 보내기</button>
+    <button id="free">교실을 자유석으로</button>
+    <span id="msg" role="status"></span>
+  </div>
+
+  <main>
+    <aside>
+      <textarea id="roster" class="noprint" placeholder="한 줄에 한 명씩&#10;1 김민수 남&#10;2 이영희 여&#10;엑셀에서 복사해 붙여넣어도 됩니다"></textarea>
+      <button class="primary noprint" id="apply" style="margin-top:8px">명단 적용</button>
+      <p class="noprint">명단은 이 기기에만 저장됩니다. 교실에는 자리별 번호만 보냅니다.</p>
+      <h2>아직 자리 없는 학생 <span id="left"></span></h2>
+      <div class="chips" id="pool"></div>
+    </aside>
+    <section>
+      <div class="teacher">교탁</div>
+      <div class="groups" id="groups"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const DB_URL = "https://class-hub-85cff-default-rtdb.asia-southeast1.firebasedatabase.app";
+const $ = id => document.getElementById(id), clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// 상태: roster[{no,name,g}], G(분단 수), seats[자리] = 번호(0 = 빈자리), locked[번호]
+let S = {roster: [], G: 5, seats: [], locked: []}, sel = null;   // sel: {seat:i} 또는 {no:n}
+const undo = [];
+try { const v = JSON.parse(localStorage.getItem("class-seat")); if (v && Array.isArray(v.roster)) S = v; } catch {}
+try { $("key").value = localStorage.getItem("class-teacher-key") || ""; } catch {}
+
+function parseRoster(text) {   // "번호 이름 성별" — 순서·구분자(탭/쉼표/공백) 자유, 번호·성별은 없어도 됨
+  const out = [], seen = new Set();
+  for (const line of text.split(/\r?\n/)) {
+    let no = 0, g = "";
+    const name = [];
+    for (const w of line.trim().split(/[\t,\s]+/).filter(Boolean)) {
+      if (!no && /^\d{1,2}$/.test(w) && +w) no = +w;
+      else if (!g && /^(남|여|남자|여자|m|f)$/i.test(w)) g = /^(남|m)/i.test(w) ? "M" : "F";
+      else name.push(w);
+    }
+    if (!name.length) continue;
+    if (!no || seen.has(no)) { no = 1; while (seen.has(no)) no++; }   // 번호가 없거나 겹치면 비어 있는 가장 작은 번호
+    if (no > 99) continue;
+    seen.add(no);
+    out.push({no, name: name.join(" ").slice(0, 10), g});
+  }
+  return out.sort((a, b) => a.no - b.no);
+}
+function normalize() {   // 저장된 값·수정 결과를 항상 일관되게
+  S.G = clamp(Math.round(+S.G) || 1, 1, 7);
+  const valid = new Set(S.roster.map(s => s.no)), used = new Set();
+  S.seats = Array.from({length: S.G * 6}, (_, i) => { const n = S.seats[i] || 0; if (!valid.has(n) || used.has(n)) return 0; used.add(n); return n; });
+  S.locked = (S.locked || []).filter(n => used.has(n));
+}
+function change(fn) {
+  undo.push(JSON.stringify(S)); if (undo.length > 50) undo.shift();
+  fn(); normalize(); sel = null;
+  try { localStorage.setItem("class-seat", JSON.stringify(S)); } catch {}
+  render();
+}
+const byNo = n => S.roster.find(s => s.no === n);
+const msg = t => $("msg").textContent = t;
+const fillRoster = () => $("roster").value = S.roster.map(s => [s.no, s.name, s.g === "M" ? "남" : s.g === "F" ? "여" : ""].join(" ").trim()).join("\n");
+
+function arrange() {
+  const unit = +$("unit").value, mode = $("mode").value;
+  change(() => {
+    const seats = S.seats.map(n => S.locked.includes(n) ? n : 0);   // 고정석은 그대로
+    let pool = S.roster.map(s => s.no).filter(n => !seats.includes(n));
+    if (mode === "random") for (let i = pool.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    if (mode === "alt") {
+      const f = pool.filter(n => byNo(n).g === "F"), m = pool.filter(n => byNo(n).g !== "F");
+      pool = []; while (m.length || f.length) { if (m.length) pool.push(m.shift()); if (f.length) pool.push(f.shift()); }
+    }
+    for (let i = 0; i < seats.length && pool.length; i++) if (!seats[i] && i % 6 < unit) seats[i] = pool.shift();
+    S.seats = seats;
+    msg(pool.length ? `자리가 모자라 ${pool.length}명이 남았어요. 분단 수를 늘려 보세요.` : "");
+  });
+}
+function clickSeat(i) {
+  if (!sel) { sel = {seat: i}; return render(); }
+  const a = sel;
+  if (a.seat === i) { sel = null; return render(); }
+  change(() => { if (a.no) S.seats[i] = a.no; else [S.seats[a.seat], S.seats[i]] = [S.seats[i], S.seats[a.seat]]; });
+}
+function clickChip(no) {
+  if (sel && sel.seat != null) { const i = sel.seat; return change(() => S.seats[i] = no); }
+  sel = sel && sel.no === no ? null : {no};
+  render();
+}
+
+function render() {
+  $("G").value = S.G;
+  $("undo").disabled = !undo.length;
+  const seatOf = sel && sel.seat != null ? S.seats[sel.seat] : 0;
+  $("lock").disabled = $("clear").disabled = !seatOf;
+  $("groups").replaceChildren(...Array.from({length: S.G}, (_, g) => {
+    const box = document.createElement("div"), h = document.createElement("h3"), grid = document.createElement("div");
+    box.className = "group"; grid.className = "grid"; h.textContent = `${g + 1}분단`;
+    for (let i = g * 6; i < g * 6 + 6; i++) {
+      const s = byNo(S.seats[i]), b = document.createElement("button");
+      b.className = "seat " + (s ? s.g : "empty") + (s && S.locked.includes(s.no) ? " lock" : "") + (sel && sel.seat === i ? " sel" : "");
+      if (s) { const n = document.createElement("small"); n.textContent = s.no; b.append(n, s.name); } else b.textContent = "빈자리";
+      b.onclick = () => clickSeat(i);
+      grid.append(b);
+    }
+    box.append(h, grid);
+    return box;
+  }));
+  const rest = S.roster.filter(s => !S.seats.includes(s.no));
+  $("left").textContent = rest.length ? `(${rest.length}명)` : "";
+  $("pool").replaceChildren(...rest.map(s => {
+    const b = document.createElement("button");
+    b.className = "chip" + (sel && sel.no === s.no ? " sel" : ""); b.textContent = `${s.no} ${s.name}`;
+    b.onclick = () => clickChip(s.no);
+    return b;
+  }));
+}
+
+$("apply").onclick = () => { const r = parseRoster($("roster").value); change(() => S.roster = r); msg(`${r.length}명을 읽었어요.`); };
+$("G").onchange = e => change(() => S.G = e.target.value);
+$("arrange").onclick = arrange;
+$("undo").onclick = () => { if (!undo.length) return; S = JSON.parse(undo.pop()); sel = null; fillRoster(); try { localStorage.setItem("class-seat", JSON.stringify(S)); } catch {} render(); };
+$("lock").onclick = () => { const n = S.seats[sel.seat]; change(() => S.locked = S.locked.includes(n) ? S.locked.filter(x => x !== n) : [...S.locked, n]); };
+$("clear").onclick = () => { const i = sel.seat; change(() => S.seats[i] = 0); };
+$("print").onclick = () => print();
+
+// 교실(3D)로 보내기 — 이름은 보내지 않고 자리별 번호만 보냄. 선생님 키가 맞아야 저장됨(DB 규칙에서 확인)
+async function send(G) {
+  const k = $("key").value.trim();
+  if (!k) return msg("선생님 키를 입력해 주세요.");
+  try { localStorage.setItem("class-teacher-key", k); } catch {}
+  msg("보내는 중…");
+  try {
+    const r = await fetch(DB_URL + "/rooms/main/plan.json", {method: "PUT", body: JSON.stringify(G ? {k, G, seats: S.seats} : {k, G: 0})});
+    msg(r.ok ? (G ? "교실에 보냈어요 ✓" : "교실을 자유석으로 바꿨어요 ✓") : r.status === 401 ? "선생님 키가 맞지 않아요." : `보내지 못했어요 (${r.status})`);
+  } catch { msg("인터넷 연결을 확인해 주세요."); }
+}
+$("send").onclick = () => send(S.G);
+$("free").onclick = () => send(0);
+
+normalize();
+fillRoster();
+render();
+</script>
+</body>
+</html>

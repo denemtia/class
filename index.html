@@ -65,6 +65,8 @@ dialog p{font-size:21px;line-height:1.5;margin:8px 0 14px}
   background:repeating-linear-gradient(90deg,#dccba6 0 64px,#cdbb92 64px 65px);border:6px solid #b39b6c;border-top-width:14px;box-sizing:content-box;margin-left:-266px;cursor:pointer;touch-action:manipulation}
 .desk{position:absolute;transform:translateZ(2px);width:64px;height:54px;padding:0;border-radius:4px 4px 10px 10px;
   background:linear-gradient(#c9975b 0 28px,#a87540 28px 33px,transparent 33px 38px,#8fa3b8 38px) center/100% 100% no-repeat,none;clip-path:polygon(0 0,100% 0,100% 33px,76% 33px,76% 100%,24% 100%,24% 33px,0 33px)}
+.desk{color:#fff;font:700 16px/28px Arial,sans-serif;padding:0 0 26px;text-align:center}
+.desk.mydesk{background-image:linear-gradient(#f6dc7a 0 28px,#d9b84a 28px 33px,transparent 33px 38px,#8fa3b8 38px);color:#333}
 .desk:hover,.desk:focus-visible{filter:brightness(1.15);outline:0}
 .me{position:absolute;left:0;top:0;width:200px;display:flex;flex-direction:column;align-items:center;pointer-events:none;transform-origin:50% 100%;will-change:transform}
 .me .tag{background:#fff;color:#333;border-radius:99px;padding:0 9px;font-size:21px;line-height:1.25;box-shadow:0 1px 3px #0004;white-space:nowrap}
@@ -114,7 +116,7 @@ dialog p{font-size:21px;line-height:1.5;margin:8px 0 14px}
   <div class="nav chalk"><button id="prev">← 이전 시간</button><button id="next">다음 시간 →</button></div>
 </dialog>
 
-<div class="roomhint"><span>👆 바닥을 누르면 이동, 책상을 누르면 앉아요 (PC는 방향키)</span><span id="online"></span></div>
+<div class="roomhint"><span id="hint">👆 바닥을 누르면 이동, 책상을 누르면 앉아요 (PC는 방향키)</span><span id="online"></span></div>
 <div class="roomwrap"><div class="room" id="room"><div class="fl" id="fl"></div></div></div>
 
 <dialog id="joindlg">
@@ -142,7 +144,7 @@ dialog p{font-size:21px;line-height:1.5;margin:8px 0 14px}
 const SITE_URL  = "https://denemtia.github.io/class/";                    // 학생 접속 주소 (배포 후 입력, 비우면 현재 주소)
 const ABOUT_URL = "https://github.com/";   // "더 알아보기" 링크
 const APPS = [                              // url이 비어 있으면 "준비 중"으로 표시
-  {title:"자리배치 프로그램", tag:"CLASSROOM", emoji:"🪑", color:"#a9c8f0", url:"", chips:["교실","자리 바꾸기"], desc:"교실 평면에 책상을 놓고 자리를 배치하는 프로그램입니다."},
+  {title:"자리배치 프로그램", tag:"선생님용", emoji:"🪑", color:"#a9c8f0", url:"seat.html", chips:["교실","자리 바꾸기","선생님용"], desc:"명단을 넣고 분단별 자리를 정하는 선생님용 프로그램입니다. 정한 자리는 아래 교실에 바로 보낼 수 있어요."},
   {title:"수업", tag:"CLASS", emoji:"📖", color:"#f3d27a", url:"", chips:["수업"], desc:"수업에서 쓰는 자료와 활동이 올라올 자리입니다."},
 ];
 const FIREBASE_DB_URL = "https://class-hub-85cff-default-rtdb.asia-southeast1.firebasedatabase.app";              // 실시간 DB 주소 (비우면 각자 자기 캐릭터만 보임)
@@ -205,18 +207,11 @@ qrdlg.onclick = e => e.target === qrdlg && qrdlg.close();
 // ===== 3D 교실: 출석 → 캐릭터 → 이동·착석 =====
 // 좌표는 모든 기기가 같은 논리 크기(W×H)를 쓰고, 화면에는 CSS로 축소·기울여 보여 줌
 const AVATARS = ["🧑‍🎓", "🐱", "🐶", "🐰", "🦊", "🐻", "🐧", "🤖"], SPEED = 200, W = 520, H = 720, TILT = 45, CW = 200;
-const SEATS = [];   // 5열 × 8줄 = 40석, 좌표는 의자 위치
-for (let r = 0; r < 8; r++) for (let c = 0; c < 5; c++) SEATS.push({x: 60 + c * 100, y: 130 + r * 74});
+let SEATS = [];                    // 의자 위치(논리 좌표). layout()이 채움
+let plan = {G: 0, seats: []};      // 선생님이 자리배치 페이지에서 보낸 배치: 분단 수 G, seats[자리] = 출석번호(0 = 빈자리)
 const room = $("room"), fl = $("fl"), joindlg = $("joindlg"), clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const fitRoom = () => room.style.setProperty("--s", Math.min(1.1, room.clientWidth / 790, Math.max(.45, (innerHeight - 70) / 720)));
 fitRoom(); addEventListener("resize", fitRoom);
-SEATS.forEach((p, i) => {
-  const d = document.createElement("button");
-  d.className = "desk"; d.ariaLabel = `${i + 1}번 자리`;
-  d.style.left = p.x - 32 + "px"; d.style.top = p.y - 46 + "px";
-  d.onclick = () => sit(i);
-  fl.append(d);
-});
 
 const players = new Map();   // id → {el, tag, av, x, y, gx, gy, seat}  (gx,gy = 가려는 곳)
 let me = null, profile = null, net = null, myId;
@@ -248,9 +243,33 @@ function upsert(id, raw) {   // 다른 학생
 function drop(id) { players.get(id)?.el.remove(); players.delete(id); count(); }
 count();
 
+// 책상 놓기: 배치가 있으면 6인 분단(자리 순서 1 4 / 2 5 / 3 6)을 한 줄에 3분단씩, 없으면 자유석 5열 × 8줄
+const mySeat = () => plan.G && profile ? plan.seats.indexOf(profile.no) : -1;
+function layout() {
+  SEATS = [];
+  if (plan.G) for (let i = 0; i < plan.G * 6; i++) { const g = i / 6 | 0, k = i % 6; SEATS.push({x: 61 + g % 3 * 165 + (k / 3 | 0) * 70, y: 112 + (g / 3 | 0) * 216 + k % 3 * 68}); }
+  else for (let r = 0; r < 8; r++) for (let c = 0; c < 5; c++) SEATS.push({x: 60 + c * 100, y: 130 + r * 74});
+  fl.querySelectorAll(".desk").forEach(d => d.remove());
+  SEATS.forEach((p, i) => {
+    const d = document.createElement("button"), no = plan.G && plan.seats[i] || 0;
+    d.className = "desk" + (i === mySeat() ? " mydesk" : ""); d.ariaLabel = `${i + 1}번 자리`;
+    d.textContent = no || "";
+    d.style.left = p.x - 32 + "px"; d.style.top = p.y - 46 + "px";
+    d.onclick = () => sit(i);
+    fl.append(d);
+  });
+  for (const o of players.values()) if (o.seat >= SEATS.length) o.seat = -1;
+  const moved = layout.G !== plan.G; layout.G = plan.G;   // 책상 위치가 바뀌면 앉아 있던 자리 번호는 무효
+  if (me && (plan.G || moved)) { me.seat = -1; const m = mySeat(); if (m >= 0) go(SEATS[m].x, SEATS[m].y, m); }
+  $("hint").textContent = mySeat() >= 0 ? "👆 내 자리는 노란 책상이에요" : HINT;
+}
+const HINT = $("hint").textContent;
+layout();
+
 function enter(p) {
   profile = {no: p.no, name: p.name, avatar: p.avatar};
   if (me) label(me, profile); else { me = makeChar(myId, profile, W / 2, H - 24); me.el.classList.add("mine"); }
+  layout();   // 내 자리 표시·자동 착석
   net?.put();
   $("joinbtn").textContent = "이름 바꾸기";
 }
@@ -275,7 +294,12 @@ function go(x, y, seat = -1) {
   me.gx = clamp(x, 12, W - 12); me.gy = clamp(y, 30, H - 4); me.seat = seat;
 }
 // ponytail: 같은 자리를 동시에 누르면 둘 다 앉을 수 있음. 막으려면 자리별 DB 트랜잭션
-function sit(i) { for (const o of players.values()) if (o !== me && o.seat === i) return; go(SEATS[i].x, SEATS[i].y, i); }
+function sit(i) {
+  for (const o of players.values()) if (o !== me && o.seat === i) return;
+  if (me && plan.G && plan.seats[i] && plan.seats[i] !== profile.no) return flash("다른 친구 자리예요");
+  go(SEATS[i].x, SEATS[i].y, i);
+}
+function flash(t) { const h = $("hint"), old = h.textContent; h.textContent = t; setTimeout(() => h.textContent === t && (h.textContent = old), 1500); }
 fl.onclick = e => e.target === fl && go(e.offsetX, e.offsetY);
 addEventListener("keydown", e => { if (me && MOVE.includes(e.key) && !document.querySelector("dialog[open]")) { keys.add(e.key); e.preventDefault(); } });
 addEventListener("keyup", e => keys.delete(e.key));
@@ -317,6 +341,9 @@ if (FIREBASE_DB_URL) (async () => {
     db.onChildAdded(all, s => s.key !== myId && upsert(s.key, s.val()));
     db.onChildChanged(all, s => s.key !== myId && upsert(s.key, s.val()));
     db.onChildRemoved(all, s => s.key !== myId && drop(s.key));
+    // 선생님 자리배치 (번호만 들어 있음)
+    db.onValue(db.ref(d, "rooms/main/plan/G"), s => { plan.G = clamp(Math.round(+s.val()) || 0, 0, 7); layout(); });
+    db.onValue(db.ref(d, "rooms/main/plan/seats"), s => { const v = s.val() || {}; plan.seats = Array.from({length: 42}, (_, i) => clamp(Math.round(+v[i]) || 0, 0, 99)); layout(); });
     net = {put() { if (me) { db.onDisconnect(mine).remove(); db.set(mine, {...profile, ...state()}); } }};
     db.onValue(db.ref(d, ".info/connected"), s => s.val() && net.put());
     // 페이지를 떠나면 바로 지우고(서버 감지는 1분쯤 걸림), 뒤로가기로 돌아오면 다시 등록
