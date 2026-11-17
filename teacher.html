@@ -228,7 +228,10 @@ async function start(user) {
 }
 $("login").onclick = async () => {
   try { msg("Google 로그인 창을 확인해 주세요…"); F = await fb(); await F.au.signInWithPopup(F.auth, new F.au.GoogleAuthProvider()); }
-  catch (e) { console.warn(e); msg(e && e.code === "auth/popup-blocked" ? "팝업이 차단됐어요. 주소창의 팝업 허용을 눌러 주세요." : "로그인하지 못했어요. 다시 시도해 주세요."); }
+  catch (e) {
+    if (e && e.code === "auth/cancelled-popup-request") return;   // 버튼을 두 번 눌러 새 창이 뜬 경우: 새 창에서 계속
+    console.warn(e); msg(e && e.code === "auth/popup-blocked" ? "팝업이 차단됐어요. 주소창의 팝업 허용을 눌러 주세요." : "로그인하지 못했어요. 다시 시도해 주세요.");
+  }
 };
 $("logout").onclick = async () => { await F.au.signOut(F.auth); location.reload(); };
 $("wipe").onclick = e => confirmClick(e.target, () => run(async () => {
