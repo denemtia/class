@@ -468,7 +468,7 @@ function runRace(v) {
   const end = sim.finish[sim.order[top - 1]] + 16, t0 = performance.now(), TEXT = {slip: "🍌 %s 미끄덩!", boost: "⚡ %s 부스터!", sleep: "😴 %s 깜빡 졸아요…"};
   let ei = 0, hot = -1, hotUntil = 0;
   raceRaf = requestAnimationFrame(function frame(t) {
-    const s = Math.min((t - t0) / RACE_STEP, end), i = Math.floor(s), f = s - i, A = sim.frames[Math.min(i, sim.frames.length - 1)], B = sim.frames[Math.min(i + 1, sim.frames.length - 1)];
+    const s = clamp((t - t0) / RACE_STEP, 0, end), i = Math.floor(s), f = s - i, A = sim.frames[Math.min(i, sim.frames.length - 1)], B = sim.frames[Math.min(i + 1, sim.frames.length - 1)];
     while (ei < sim.events.length && sim.events[ei].step <= i) { const e = sim.events[ei++]; cap(TEXT[e.kind].replace("%s", list[e.who].t)); hot = e.who; hotUntil = i + 24; }
     const w = track.clientWidth;
     runners.forEach((e, k) => {
