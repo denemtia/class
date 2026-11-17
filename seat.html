@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://*.firebasedatabase.app; base-uri 'none'; form-action 'none'">
 <title>자리배치 — MY LAB</title>
 <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -68,8 +69,11 @@ aside p{font-size:16px;opacity:.75;margin:4px 0 8px}
     <button id="print">🖨 인쇄</button>
     <span class="sep"></span>
     <label>선생님 키 <input id="key" type="password" autocomplete="off" size="14"></label>
+    <label title="학생도 쓰는 공용 컴퓨터에서는 끄세요"><input id="remember" type="checkbox"> 이 기기에 키 기억</label>
     <button class="primary" id="send">교실에 보내기</button>
     <button id="free">교실을 자유석으로</button>
+    <button id="close">🚪 교실 문 닫기</button>
+    <button id="open">교실 문 열기</button>
     <span id="msg" role="status"></span>
   </div>
 
@@ -96,7 +100,7 @@ const $ = id => document.getElementById(id), clamp = (v, a, b) => Math.max(a, Ma
 let S = {roster: [], G: 5, seats: [], locked: []}, sel = null;   // sel: {seat:i} 또는 {no:n}
 const undo = [];
 try { const v = JSON.parse(localStorage.getItem("class-seat")); if (v && Array.isArray(v.roster)) S = v; } catch {}
-try { $("key").value = localStorage.getItem("class-teacher-key") || ""; } catch {}
+try { $("key").value = localStorage.getItem("class-teacher-key") || ""; $("remember").checked = !!$("key").value; } catch {}
 
 function parseRoster(text) {   // "번호 이름 성별" — 순서·구분자(탭/쉼표/공백) 자유, 번호·성별은 없어도 됨
   const out = [], seen = new Set();
@@ -196,18 +200,22 @@ $("clear").onclick = () => { const i = sel.seat; change(() => S.seats[i] = 0); }
 $("print").onclick = () => print();
 
 // 교실(3D)로 보내기 — 이름은 보내지 않고 자리별 번호만 보냄. 선생님 키가 맞아야 저장됨(DB 규칙에서 확인)
-async function send(G) {
+async function put(path, body, okMsg) {
   const k = $("key").value.trim();
   if (!k) return msg("선생님 키를 입력해 주세요.");
-  try { localStorage.setItem("class-teacher-key", k); } catch {}
+  // 키는 체크했을 때만 이 기기에 남김 (공용 컴퓨터에 남으면 학생이 배치를 바꿀 수 있음)
+  try { $("remember").checked ? localStorage.setItem("class-teacher-key", k) : localStorage.removeItem("class-teacher-key"); } catch {}
   msg("보내는 중…");
   try {
-    const r = await fetch(DB_URL + "/rooms/main/plan.json", {method: "PUT", body: JSON.stringify(G ? {k, G, seats: S.seats} : {k, G: 0})});
-    msg(r.ok ? (G ? "교실에 보냈어요 ✓" : "교실을 자유석으로 바꿨어요 ✓") : r.status === 401 ? "선생님 키가 맞지 않아요." : `보내지 못했어요 (${r.status})`);
+    const r = await fetch(`${DB_URL}/rooms/main/${path}.json`, {method: "PUT", body: JSON.stringify({k, ...body})});
+    msg(r.ok ? okMsg : r.status === 401 ? "선생님 키가 맞지 않아요." : `보내지 못했어요 (${r.status})`);
   } catch { msg("인터넷 연결을 확인해 주세요."); }
 }
-$("send").onclick = () => send(S.G);
-$("free").onclick = () => send(0);
+$("send").onclick = () => put("plan", {G: S.G, seats: S.seats}, "교실에 보냈어요 ✓");
+$("free").onclick = () => put("plan", {G: 0}, "교실을 자유석으로 바꿨어요 ✓");
+// 수업이 끝나면 문을 닫아 두면, 열 때까지 아무도 교실에 기록을 쓸 수 없음
+$("close").onclick = () => put("gate", {open: false}, "교실 문을 닫았어요 🚪");
+$("open").onclick = () => put("gate", {open: true}, "교실 문을 열었어요 ✓");
 
 normalize();
 fillRoster();

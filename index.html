@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- 허용한 곳 외의 스크립트·통신을 브라우저가 막도록 함 (Firebase 연결용 주소만 허용) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://*.firebasedatabase.app https://*.firebaseio.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://*.firebasedatabase.app https://*.firebaseio.com wss://*.firebasedatabase.app wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; frame-src https://*.firebasedatabase.app https://*.firebaseio.com; base-uri 'none'; form-action 'none'">
 <title>MY LAB — 웹앱 놀이터</title>
 <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -86,7 +88,7 @@ dialog p{font-size:21px;line-height:1.5;margin:8px 0 14px}
 #qrdlg{text-align:center}#qrdlg h2{font-size:32px}#qr-url{font-size:18px;word-break:break-all;opacity:.85;font-family:Arial,sans-serif}
 @media(max-width:600px){.grid{grid-template-columns:repeat(2,1fr);gap:22px 14px}.card .em{font-size:42px}.card b{font-size:18px}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="qrcode.js"></script>
 </head>
 <body>
 <div class="board" id="board">
@@ -147,7 +149,9 @@ const APPS = [                              // url이 비어 있으면 "준비 �
   {title:"자리배치 프로그램", tag:"선생님용", emoji:"🪑", color:"#a9c8f0", url:"seat.html", chips:["교실","자리 바꾸기","선생님용"], desc:"명단을 넣고 분단별 자리를 정하는 선생님용 프로그램입니다. 정한 자리는 아래 교실에 바로 보낼 수 있어요."},
   {title:"수업", tag:"CLASS", emoji:"📖", color:"#f3d27a", url:"", chips:["수업"], desc:"수업에서 쓰는 자료와 활동이 올라올 자리입니다."},
 ];
-const FIREBASE_DB_URL = "https://class-hub-85cff-default-rtdb.asia-southeast1.firebasedatabase.app";              // 실시간 DB 주소 (비우면 각자 자기 캐릭터만 보임)
+// Firebase 웹 설정(공개값, 비밀 아님). 보안은 DB 규칙과 익명 로그인으로 지킴. 비우면 각자 자기 캐릭터만 보임
+const FIREBASE = {apiKey: "AIzaSyC6mT6KbaC02xbAyU4PtikM4HxJp_UOL7M", authDomain: "class-hub-85cff.firebaseapp.com", projectId: "class-hub-85cff", appId: "1:662011086407:web:64c2f6a93750303982d362",
+  databaseURL: "https://class-hub-85cff-default-rtdb.asia-southeast1.firebasedatabase.app"};
 const MAX_PLAYERS = 40;                    // 정원
 const CHALKS = ["#f3f2e6", "#f6dc7a", "#f7a8b8", "#9fd0f0"];   // 분필 색
 // ================================
@@ -225,7 +229,7 @@ const clean = v => !v || typeof v.name !== "string" || !v.name.trim() || !AVATAR
   no: clamp(Math.round(+v.no) || 1, 1, 99), name: v.name.trim().slice(0, 10), avatar: v.avatar,
   x: clamp(+v.x || 0, 0, W), y: clamp(+v.y || 0, 0, H), seat: Number.isInteger(v.seat) && v.seat >= 0 && v.seat < SEATS.length ? v.seat : -1};
 const label = (o, p) => { o.tag.textContent = `${p.no}번 ${p.name}`; o.av.textContent = p.avatar; };
-const count = () => $("online").textContent = `접속 ${players.size}명 / 정원 ${MAX_PLAYERS}명`;
+const count = () => $("online").textContent.startsWith("🚪") || ($("online").textContent = `접속 ${players.size}명 / 정원 ${MAX_PLAYERS}명`);
 function makeChar(id, p, x, y) {
   const el = document.createElement("div"), tag = document.createElement("span"), av = document.createElement("span");
   el.className = "me"; tag.className = "tag"; av.className = "av";
@@ -329,28 +333,37 @@ requestAnimationFrame(function tick(t) {
 });
 
 // 실시간 동기화 (Firebase Realtime Database). 창을 닫으면 내 기록은 자동 삭제됨
-// ponytail: 로그인 없이 쓰기 허용(규칙으로 형식·길이만 검증). 장난 방지가 필요하면 익명 인증 + uid 규칙
-if (FIREBASE_DB_URL) (async () => {
+// 보안: 기기마다 익명 로그인 → 자기 기록(players/내 uid)만 쓸 수 있고, 로그인 없이는 읽지도 못함(DB 규칙)
+if (FIREBASE) (async () => {
   try {
     const V = "https://www.gstatic.com/firebasejs/10.12.2/";
-    const [{initializeApp}, db] = await Promise.all([import(V + "firebase-app.js"), import(V + "firebase-database.js")]);
-    const d = db.getDatabase(initializeApp({databaseURL: FIREBASE_DB_URL}));
-    const all = db.ref(d, "rooms/main/players"), mine = db.child(all, myId);
+    const [{initializeApp}, db, au] = await Promise.all([import(V + "firebase-app.js"), import(V + "firebase-database.js"), import(V + "firebase-auth.js")]);
+    const app = initializeApp(FIREBASE), d = db.getDatabase(app);
+    const uid = (await au.signInAnonymously(au.getAuth(app))).user.uid;
+    if (me) { players.delete(myId); players.set(uid, me); }
+    myId = uid;
+    const all = db.ref(d, "rooms/main/players"), mine = db.child(all, myId), quiet = p => p.catch(() => {});
     const state = () => ({x: Math.round(me.gx), y: Math.round(me.gy), seat: me.seat});
-    let sent = "";
+    let sent = "", open = true;
     db.onChildAdded(all, s => s.key !== myId && upsert(s.key, s.val()));
     db.onChildChanged(all, s => s.key !== myId && upsert(s.key, s.val()));
     db.onChildRemoved(all, s => s.key !== myId && drop(s.key));
     // 선생님 자리배치 (번호만 들어 있음)
     db.onValue(db.ref(d, "rooms/main/plan/G"), s => { plan.G = clamp(Math.round(+s.val()) || 0, 0, 7); layout(); });
     db.onValue(db.ref(d, "rooms/main/plan/seats"), s => { const v = s.val() || {}; plan.seats = Array.from({length: 42}, (_, i) => clamp(Math.round(+v[i]) || 0, 0, 99)); layout(); });
-    net = {put() { if (me) { db.onDisconnect(mine).remove(); db.set(mine, {...profile, ...state()}); } }};
+    net = {put() { if (me && open) { quiet(db.onDisconnect(mine).remove()); quiet(db.set(mine, {...profile, ...state()})); } }};
+    // 선생님이 교실 문을 닫으면 아무도 기록을 쓸 수 없음(규칙에서도 막음) → 화면에 알리고 혼자 모드로
+    db.onValue(db.ref(d, "rooms/main/gate/open"), s => {
+      open = s.val() !== false;
+      $("online").style.color = open ? "" : "#b0452f";
+      if (open) { $("online").textContent = ""; count(); net.put(); } else $("online").textContent = "🚪 교실 문이 닫혀 있어요 (혼자 연습)";
+    });
     db.onValue(db.ref(d, ".info/connected"), s => s.val() && net.put());
     // 페이지를 떠나면 바로 지우고(서버 감지는 1분쯤 걸림), 뒤로가기로 돌아오면 다시 등록
-    addEventListener("pagehide", () => db.remove(mine));
+    addEventListener("pagehide", () => quiet(db.remove(mine)));
     addEventListener("pageshow", e => e.persisted && net.put());
     // 목적지가 바뀔 때만, 최대 초당 5번 전송 → 40명이어도 무료 한도 안에서 여유
-    setInterval(() => { if (!me) return; const v = state(), key = JSON.stringify(v); if (key !== sent) { sent = key; db.update(mine, v); } }, 200);
+    setInterval(() => { if (!me || !open) return; const v = state(), key = JSON.stringify(v); if (key !== sent) { sent = key; quiet(db.update(mine, v)); } }, 200);
   } catch (e) { console.warn("실시간 연결 실패 — 혼자 모드로 동작합니다", e); }
 })();
 
