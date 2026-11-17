@@ -37,7 +37,6 @@ section{border-top:2px dashed #f3f2e655;padding:16px 0}
 dialog{margin:auto;width:min(440px,92vw);border:12px solid var(--wood);border-image:linear-gradient(#b98356,#8d5c36) 1;background:var(--board);color:var(--chalk);padding:22px;text-align:center;font-family:inherit}
 dialog::backdrop{background:#2a1e1288}
 .qr{background:#fff;padding:12px;width:min(320px,70vw);margin:12px auto}.qr svg{display:block;width:100%;height:auto}
-#qr-url{font:15px Arial,sans-serif;word-break:break-all;opacity:.85;margin-bottom:12px}
 [hidden]{display:none!important}
 @media(max-width:700px){.app{grid-template-columns:54px 1fr auto}.app input:nth-child(3),.app input:nth-child(4){grid-column:1/-1}}
 </style>
@@ -64,7 +63,7 @@ dialog::backdrop{background:#2a1e1288}
       <h2>우리 반 교실</h2>
       <div id="rooms"></div>
       <div class="row"><input type="text" id="newcls" maxlength="20" placeholder="예: 2학년 3반" size="14"><button class="primary" id="addroom">반 만들기</button></div>
-      <p class="note">반마다 교실·QR·자리배치가 따로 있어요. 수업이 끝나면 문을 닫아 두면 아무도 들어와 기록을 남길 수 없어요.</p>
+      <p class="note">반마다 교실·QR·자리배치가 따로 있어요. "수업 시작"을 누르면 학생 화면에 칠판만 보이고, 수업이 끝나면 문을 닫아 두면 아무도 들어와 기록을 남길 수 없어요.</p>
     </section>
 
     <section>
@@ -110,7 +109,6 @@ dialog::backdrop{background:#2a1e1288}
 <dialog id="qrdlg">
   <h2 id="qr-title"></h2>
   <div class="qr" id="qr"></div>
-  <p id="qr-url"></p>
   <button id="qr-copy">주소 복사</button> <button id="qr-close">닫기 ✕</button>
 </dialog>
 
@@ -119,7 +117,7 @@ dialog::backdrop{background:#2a1e1288}
 <script>
 const $ = id => document.getElementById(id), msg = t => $("msg").textContent = t;
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
-let F = null, uid = "", pub = cleanPub(null), rooms = {}, gates = {};   // rooms: {코드: 반 이름}, gates: {코드: 열림 여부}
+let F = null, uid = "", pub = cleanPub(null), rooms = {}, gates = {}, lessons = {};   // lessons: {코드: 수업 중 여부}   // rooms: {코드: 반 이름}, gates: {코드: 열림 여부}
 
 // ---------- 그리기 ----------
 function renderSettings() {
@@ -140,11 +138,12 @@ const appRow = a => el("div", {className: "app"},
 function renderRooms() {
   const list = Object.entries(rooms);
   $("rooms").replaceChildren(...(list.length ? list.map(([code, cls]) => {
-    const open = gates[code] !== false;
+    const open = gates[code] !== false, lesson = lessons[code] === true;
     return el("div", {className: "room"},
       el("b", {textContent: cls}), el("code", {textContent: code}),
       el("span", {className: open ? "" : "closed", textContent: open ? "문 열림" : "🚪 문 닫힘"}),
       el("button", {textContent: open ? "문 닫기" : "문 열기", onclick: () => setGate(code, !open)}),
+      el("button", {className: lesson ? "primary" : "", textContent: lesson ? "📖 수업 중 · 끝내기" : "수업 시작", title: "수업 중에는 학생 화면에 칠판만 보여요", onclick: () => setLesson(code, !lesson)}),
       el("button", {className: "primary", textContent: "QR", onclick: () => showQr(code, cls)}),
       el("a", {className: "btn", href: `./?room=${code}`, target: "_blank", rel: "noopener", textContent: "교실 열기"}),
       el("a", {className: "btn", href: `seat.html?room=${code}`, textContent: "자리배치"}),
@@ -191,6 +190,7 @@ $("addroom").onclick = () => {
   }, `${cls} 교실을 만들었어요 ✓ QR을 눌러 학생들에게 보여 주세요.`);
 };
 const setGate = (code, open) => run(async () => { await F.db.set(F.db.ref(F.d, `rooms/${code}/gate`), {open}); gates[code] = open; renderRooms(); }, open ? "교실 문을 열었어요 ✓" : "교실 문을 닫았어요 🚪");
+const setLesson = (code, on) => run(async () => { await F.db.set(F.db.ref(F.d, `rooms/${code}/lesson`), on); lessons[code] = on; renderRooms(); }, on ? "수업 시작! 학생 화면에 칠판만 보여요 📖" : "수업을 끝냈어요. 교실이 다시 보여요.");
 const delRoom = code => run(async () => {
   await F.db.remove(F.db.ref(F.d, "rooms/" + code));
   await F.db.remove(F.db.ref(F.d, `mine/${uid}/${code}`));
@@ -200,7 +200,7 @@ const delRoom = code => run(async () => {
 
 function showQr(code, cls) {
   const url = roomUrl(code) + "#join";
-  $("qr-title").textContent = `${cls} 교실`; $("qr-url").textContent = url;
+  $("qr-title").textContent = `${cls} 교실`;
   const q = qrcode(0, "M"); q.addData(url); q.make();
   $("qr").innerHTML = q.createSvgTag({cellSize: 8, margin: 2, scalable: true});   // url은 고정 주소 + 영숫자 코드뿐
   $("qr-copy").onclick = e => navigator.clipboard.writeText(url).then(() => e.target.textContent = "복사됨 ✓", () => e.target.textContent = "복사 실패");
@@ -223,7 +223,10 @@ async function start(user) {
   $("hello").textContent = pub.name ? pub.name + " 선생님" : "교무실";
   renderSettings(); renderRooms();
   msg(p.exists() ? "" : "처음 오셨네요! 프로필을 적고 '설정 저장'을 누른 뒤, 반을 만들어 보세요.");
-  await Promise.all(Object.keys(rooms).map(async c => { gates[c] = (await db.get(db.ref(d, `rooms/${c}/gate/open`))).val() !== false; }));
+  await Promise.all(Object.keys(rooms).map(async c => {
+    gates[c] = (await db.get(db.ref(d, `rooms/${c}/gate/open`))).val() !== false;
+    lessons[c] = (await db.get(db.ref(d, `rooms/${c}/lesson`))).val() === true;
+  }));
   renderRooms();
 }
 $("login").onclick = async () => {

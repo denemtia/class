@@ -17,8 +17,6 @@ a{color:inherit}
 .board{flex:1;position:relative;border:16px solid var(--wood);border-image:linear-gradient(#b98356,#8d5c36) 1;box-shadow:0 14px 30px #5a40222e,inset 0 0 60px #0004;
   background:radial-gradient(40% 30% at 20% 30%,#ffffff10,transparent),radial-gradient(50% 40% at 75% 65%,#ffffff0c,transparent),var(--board);
   padding:clamp(16px,3vw,36px);display:flex;flex-direction:column;gap:22px}
-canvas{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair}
-.board>*:not(canvas){position:relative}
 .chalk{text-shadow:0 0 1px #fff8,1px 1px 0 #fff2;opacity:.93}
 .top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;pointer-events:none}
 .top a,.top button{pointer-events:auto}
@@ -39,12 +37,8 @@ h1 u{text-decoration:underline wavy #f6dc7a;text-underline-offset:8px;color:#f6d
 .card .no{position:absolute;left:8px;top:6px;font-size:14px;color:#999}
 .card .em{font-size:52px;line-height:1.3}
 .card b{font-size:20px}.card small{font-size:13px;letter-spacing:.1em;color:#888;font-family:Arial,sans-serif}
-.hint{margin-top:auto;font-size:17px;opacity:.6;pointer-events:none}
 /* 분필 받침 */
 .tray{height:26px;background:linear-gradient(#c08a5c,#8d5c36);margin:0 -6px;border-radius:0 0 4px 4px;box-shadow:0 6px 10px #0003;display:flex;align-items:flex-end;gap:10px;padding:0 5%}
-.stick{width:54px;height:11px;border-radius:3px;background:var(--k);margin-bottom:22px;box-shadow:0 2px 2px #0004;transition:.15s}
-.stick:hover{translate:0 -3px}.stick[aria-pressed=true]{translate:0 -6px;outline:2px solid #fff;outline-offset:2px}
-.eraser{margin:0 0 20px auto;background:linear-gradient(#3b4a8a 0 45%,#e8e2d0 45%);color:#fff;font-size:13px;width:92px;height:28px;border-radius:3px;line-height:12px;padding-bottom:14px;box-shadow:0 2px 3px #0005;font-family:Arial,sans-serif}
 /* 상세: 작은 칠판 */
 dialog{margin:auto;width:min(620px,92vw);border:12px solid var(--wood);border-image:linear-gradient(#b98356,#8d5c36) 1;background:var(--board);color:var(--chalk);padding:28px;box-shadow:0 30px 80px #0008;font-family:inherit}
 dialog::backdrop{background:#2a1e1288;backdrop-filter:blur(4px)}
@@ -84,6 +78,15 @@ dialog p{font-size:21px;line-height:1.5;margin:8px 0 14px}
 .avs input{position:absolute;opacity:0;inset:0}.avs span{display:block;font-size:34px;padding:2px 6px;border-radius:10px;border:2px solid transparent}
 .avs input:checked+span{border-color:#f6dc7a;background:#ffffff1a}.avs input:focus-visible+span{outline:2px solid #fff}
 .go{display:block;width:100%;background:#fffbe6;color:#333;font-size:22px;font-weight:700;padding:10px;box-shadow:2px 4px 8px #0005}
+/* 수업 중에는 칠판만 (선생님이 켬) */
+body.lesson .roomhint,body.lesson .roomwrap{display:none}
+.wall{flex:1;display:flex;gap:26px;align-items:flex-start}
+.boardcol{flex:1;min-width:0;display:flex;flex-direction:column;align-self:stretch}
+.qrside{width:210px;margin-top:34px;position:sticky;top:16px;background:#fffbe6;color:#333;padding:20px 14px 12px;box-shadow:2px 4px 8px #0005;rotate:1.5deg;text-align:center;font-size:20px;display:flex;flex-direction:column;gap:8px}
+.qrside::before{content:"";position:absolute;top:-9px;left:50%;translate:-50%;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff9,transparent 40%),#e0688f;box-shadow:0 2px 3px #0006}
+.qrside svg{display:block;width:100%;height:auto}.qrside small{font-size:17px;color:#777}
+.qrside[hidden]{display:none}
+@media(max-width:900px){.qrside{display:none}}
 .qr{background:#fff;padding:14px;width:min(360px,70vw);margin:16px auto;box-shadow:2px 4px 8px #0005}.qr svg{display:block;width:100%;height:auto}
 #qrdlg{text-align:center}#qrdlg h2{font-size:32px}#qr-url{font-size:18px;word-break:break-all;opacity:.85;font-family:Arial,sans-serif}
 @media(max-width:600px){.grid{grid-template-columns:repeat(2,1fr);gap:22px 14px}.card .em{font-size:42px}.card b{font-size:18px}}
@@ -92,8 +95,8 @@ dialog p{font-size:21px;line-height:1.5;margin:8px 0 14px}
 <script src="common.js"></script>
 </head>
 <body>
+<div class="wall"><div class="boardcol">
 <div class="board" id="board">
-  <canvas id="cv" aria-hidden="true"></canvas>
   <div class="top chalk">
     <div class="logo">✳ <span id="school">MY LAB</span></div>
     <div>
@@ -106,9 +109,12 @@ dialog p{font-size:21px;line-height:1.5;margin:8px 0 14px}
     <p class="sub" id="sub"></p>
   </div>
   <div class="grid" id="grid"></div>
-  <p class="hint chalk">※ 빈 곳에는 분필로 낙서할 수 있어요 (마우스 드래그)</p>
 </div>
-<div class="tray" id="tray"><button class="eraser" id="erase">지우개</button></div>
+<div class="tray"></div>
+</div>
+<!-- 칠판 옆에 늘 붙어 있는 QR (교실 주소로 들어왔을 때만, 큰 화면에서만) -->
+<button class="qrside" id="qrside" hidden aria-label="QR 크게 보기"><b>📱 QR로 들어오기</b><span id="qrsmall"></span><small id="qrcls"></small></button>
+</div>
 
 <dialog id="dlg">
   <div class="chalk">
@@ -138,13 +144,11 @@ dialog p{font-size:21px;line-height:1.5;margin:8px 0 14px}
 <dialog id="qrdlg">
   <div class="chalk"><h2>📱 카메라로 찍고 들어오세요</h2></div>
   <div class="qr" id="qr"></div>
-  <p class="chalk" id="qr-url"></p>
   <div class="nav chalk" style="justify-content:center;margin-top:16px"><button id="qr-close">닫기 ✕</button></div>
 </dialog>
 
 <script>
 const MAX_PLAYERS = 40;                    // 반 정원
-const CHALKS = ["#f3f2e6", "#f6dc7a", "#f7a8b8", "#9fd0f0"];   // 분필 색
 const PAPERS = ["#f3d27a", "#a9c8f0", "#f5a9c0", "#9ad7b0", "#c9b6f2", "#f6b98a"];   // 메뉴 종이 색
 
 const $ = id => document.getElementById(id), pad = i => String(i + 1).padStart(2, "0");
@@ -158,6 +162,7 @@ function applySettings(pub, cls) {
   $("school").textContent = p.school || "MY LAB";
   $("cls").textContent = [str(cls, 20), p.name && p.name + " 선생님"].filter(Boolean).join(" · ") || "웹앱 놀이터";
   $("title").textContent = p.title || "웹앱 놀이터";
+  $("qrcls").textContent = str(cls, 20);
   $("sub").textContent = p.sub || (ROOM ? "만들고, 실험하고, 써 보면서 배우는 시간." : "선생님께 받은 QR이나 주소로 들어오면 우리 반 교실이 열려요.");
   document.documentElement.style.setProperty("--board", THEMES[p.theme]);
   avatars = p.avatars; APPS = p.apps;
@@ -203,13 +208,12 @@ $("share").onclick = e => navigator.clipboard.writeText(location.href)
 
 // QR 접속 (프로젝터에 띄워 학생들이 스캔)
 const qrdlg = $("qrdlg");
-$("qrbtn").onclick = () => {
-  const url = (ROOM ? roomUrl(ROOM) : SITE_URL) + "#join";   // #join → 접속하면 출석 창이 바로 뜸
-  $("qr-url").textContent = url;
-  if (window.qrcode) { const q = qrcode(0, "M"); q.addData(url); q.make(); $("qr").innerHTML = q.createSvgTag({cellSize: 8, margin: 2, scalable: true}); }
-  else $("qr").textContent = "QR을 불러오지 못했습니다. 아래 주소로 접속하세요.";
-  qrdlg.showModal();
+const qrSvg = () => {   // 교실 주소(#join → 접속하면 출석 창이 바로 뜸)의 QR. 주소 글자는 화면에 보이지 않게 함
+  const q = qrcode(0, "M"); q.addData((ROOM ? roomUrl(ROOM) : SITE_URL) + "#join"); q.make();
+  return q.createSvgTag({cellSize: 8, margin: 2, scalable: true});   // 주소는 고정 주소 + 영숫자 코드뿐
 };
+$("qrbtn").onclick = $("qrside").onclick = () => { $("qr").innerHTML = qrSvg(); qrdlg.showModal(); };
+if (ROOM) $("qrsmall").innerHTML = qrSvg();
 $("qr-close").onclick = () => qrdlg.close();
 qrdlg.onclick = e => e.target === qrdlg && qrdlg.close();
 
@@ -219,7 +223,7 @@ const AVATARS = AVATARS_ALL, SPEED = 200, W = 520, H = 720, TILT = 45, CW = 200;
 let SEATS = [];                    // 의자 위치(논리 좌표). layout()이 채움
 let plan = {G: 0, seats: []};      // 선생님이 자리배치 페이지에서 보낸 배치: 분단 수 G, seats[자리] = 출석번호(0 = 빈자리)
 const room = $("room"), fl = $("fl"), joindlg = $("joindlg"), clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const fitRoom = () => room.style.setProperty("--s", Math.min(1.1, room.clientWidth / 790, Math.max(.45, (innerHeight - 70) / 720)));
+const fitRoom = () => room.clientWidth && room.style.setProperty("--s", Math.min(1.1, room.clientWidth / 790, Math.max(.45, (innerHeight - 70) / 720)));
 fitRoom(); addEventListener("resize", fitRoom);
 
 const players = new Map();   // id → {el, tag, av, x, y, gx, gy, seat}  (gx,gy = 가려는 곳)
@@ -310,7 +314,7 @@ function sit(i) {
 }
 function flash(t) { const h = $("hint"), old = h.textContent; h.textContent = t; setTimeout(() => h.textContent === t && (h.textContent = old), 1500); }
 fl.onclick = e => e.target === fl && go(e.offsetX, e.offsetY);
-addEventListener("keydown", e => { if (me && MOVE.includes(e.key) && !document.querySelector("dialog[open]")) { keys.add(e.key); e.preventDefault(); } });
+addEventListener("keydown", e => { if (me && MOVE.includes(e.key) && !document.querySelector("dialog[open]") && !document.body.classList.contains("lesson")) { keys.add(e.key); e.preventDefault(); } });
 addEventListener("keyup", e => keys.delete(e.key));
 addEventListener("blur", () => keys.clear());
 
@@ -352,6 +356,8 @@ if (ROOM) (async () => {
     let pub = null, cls = "";
     db.onValue(db.ref(d, "pub/" + owner), s => { pub = s.val(); applySettings(pub, cls); });
     db.onValue(R("cls"), s => { cls = s.val() || ""; applySettings(pub, cls); });
+    db.onValue(R("lesson"), s => { document.body.classList.toggle("lesson", s.val() === true); fitRoom(); });   // 수업 시작 → 칠판만
+    if (uid === owner) $("qrside").hidden = false;   // 칠판 옆 QR은 이 반 선생님 화면(프로젝터·전자칠판)에만. 학생 태블릿에는 안 보임
     const all = R("players"), mine = db.child(all, myId), quiet = p => p.catch(() => {});
     const state = () => ({x: Math.round(me.gx), y: Math.round(me.gy), seat: me.seat});
     let sent = "", open = true;
@@ -380,27 +386,6 @@ if (ROOM) (async () => {
   } catch (e) { console.warn("실시간 연결 실패 — 혼자 모드로 동작합니다", e); }
 })();
 
-// 분필 낙서
-const cv = $("cv"), ctx = cv.getContext("2d");
-// ponytail: 창 크기를 바꾸면 낙서가 지워짐. 유지하려면 획을 배열에 저장해 다시 그리기
-const fit = () => { cv.width = cv.clientWidth; cv.height = cv.clientHeight; };
-fit(); addEventListener("resize", fit);
-CHALKS.forEach((k, i) => {
-  const s = document.createElement("button");
-  s.className = "stick"; s.style.setProperty("--k", k); s.ariaLabel = "분필 색 " + (i + 1); s.ariaPressed = i === 0;
-  s.onclick = () => { pen = k; document.querySelectorAll(".stick").forEach(x => x.ariaPressed = x === s); };
-  $("erase").before(s);
-});
-let pen = CHALKS[0], drawing = false;
-cv.onpointerdown = e => {
-  if (e.pointerType === "touch") return;   // 터치는 스크롤 우선 (낙서는 마우스·펜만)
-  drawing = true; cv.setPointerCapture(e.pointerId);
-  ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY);
-  ctx.strokeStyle = pen; ctx.lineWidth = 4; ctx.lineCap = ctx.lineJoin = "round"; ctx.globalAlpha = .85;
-};
-cv.onpointermove = e => { if (drawing) { ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); } };
-cv.onpointerup = cv.onpointercancel = () => drawing = false;
-$("erase").onclick = () => ctx.clearRect(0, 0, cv.width, cv.height);
 </script>
 </body>
 </html>
