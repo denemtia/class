@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- 허용한 곳 외의 스크립트·통신을 브라우저가 막도록 함 (Firebase·Google 로그인용 주소만 허용) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://*.firebasedatabase.app https://*.firebaseio.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://*.firebasedatabase.app https://*.firebaseio.com wss://*.firebasedatabase.app wss://*.firebaseio.com https://*.googleapis.com; frame-src https://class-hub-85cff.firebaseapp.com https://*.firebasedatabase.app https://*.firebaseio.com; base-uri 'none'; form-action 'none'">
+<title>선생님 — MY LAB</title>
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--board:#2f5d48;--chalk:#f3f2e6;--wood:#a9744a}
+*{box-sizing:border-box;margin:0}
+body{background:#efe6d3;min-height:100vh;padding:clamp(8px,2vw,28px);font-family:Gaegu,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:var(--chalk);font-size:19px}
+button,select,input,textarea{font:inherit;color:inherit}
+button,.btn{cursor:pointer;background:none;border:1.5px solid #f3f2e699;border-radius:8px;padding:3px 12px;text-decoration:none;display:inline-block;white-space:nowrap}
+button:hover,.btn:hover{background:#ffffff1a}button:disabled{opacity:.4;cursor:default}
+button.primary{background:#fffbe6;color:#333;border-color:#fffbe6;font-weight:700}
+button.danger{border-color:#f7a8b8;color:#f7a8b8}
+input[type=text],input[type=url]{background:#0003;border:1.5px solid #f3f2e699;border-radius:8px;padding:3px 8px;min-width:0}
+a{color:inherit}
+.board{border:14px solid var(--wood);border-image:linear-gradient(#b98356,#8d5c36) 1;background:var(--board);box-shadow:0 14px 30px #5a40222e,inset 0 0 60px #0004;padding:clamp(12px,2.4vw,28px);min-height:calc(100vh - 56px)}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+h1{font-size:clamp(30px,5vw,46px)}h1 u{color:#f6dc7a;text-decoration:underline wavy #f6dc7a;text-underline-offset:7px}
+h2{font-size:26px;color:#f6dc7a;margin-bottom:8px}
+section{border-top:2px dashed #f3f2e655;padding:16px 0}
+.row{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:6px 0}
+.row label{display:flex;gap:6px;align-items:center}
+.note{font-size:16px;opacity:.75}
+#msg{min-height:1.3em;color:#f6dc7a;position:sticky;top:0;background:var(--board);padding:2px 0;z-index:1}
+.avs label{position:relative}.avs input{position:absolute;opacity:0;inset:0}.avs span{display:block;font-size:30px;padding:0 6px;border-radius:10px;border:2px solid transparent;opacity:.45}
+.avs input:checked+span{border-color:#f6dc7a;background:#ffffff1a;opacity:1}.avs input:focus-visible+span{outline:2px solid #fff}
+.sw{width:28px;height:20px;border-radius:4px;border:2px solid #fff8;display:inline-block}
+.app{display:grid;grid-template-columns:54px minmax(90px,1fr) minmax(120px,2fr) minmax(120px,2fr) auto;gap:6px;margin:6px 0}
+.room{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#0002;border-radius:10px;padding:8px 12px;margin:8px 0}
+.room b{font-size:23px;margin-right:6px}.room code{font:14px monospace;opacity:.7;margin-right:auto}
+.closed{color:#f7a8b8}
+dialog{margin:auto;width:min(440px,92vw);border:12px solid var(--wood);border-image:linear-gradient(#b98356,#8d5c36) 1;background:var(--board);color:var(--chalk);padding:22px;text-align:center;font-family:inherit}
+dialog::backdrop{background:#2a1e1288}
+.qr{background:#fff;padding:12px;width:min(320px,70vw);margin:12px auto}.qr svg{display:block;width:100%;height:auto}
+#qr-url{font:15px Arial,sans-serif;word-break:break-all;opacity:.85;margin-bottom:12px}
+[hidden]{display:none!important}
+@media(max-width:700px){.app{grid-template-columns:54px 1fr auto}.app input:nth-child(3),.app input:nth-child(4){grid-column:1/-1}}
+</style>
+</head>
+<body>
+<div class="board">
+  <header>
+    <h1>선생님 : <u id="hello">교무실</u></h1>
+    <span><a href="./">← 칠판으로</a> &nbsp;<button id="logout" hidden>로그아웃</button></span>
+  </header>
+  <p id="msg" role="status"></p>
+
+  <!-- 로그인 전 -->
+  <section id="gate">
+    <h2>선생님 로그인</h2>
+    <p style="margin-bottom:12px">Google 계정으로 가입·로그인하면 우리 반 교실을 만들고, 학교 정보·화면·메뉴를 직접 정할 수 있어요.</p>
+    <button class="primary" id="login" style="font-size:22px;padding:8px 18px">Google 계정으로 시작하기</button>
+    <p class="note" style="margin-top:12px">학생은 가입하지 않습니다. 사이트에는 아래에 적는 표시 이름·학교·설정만 저장되고, 학생 명단은 저장하지 않습니다.</p>
+  </section>
+
+  <!-- 로그인 후 -->
+  <div id="app" hidden>
+    <section>
+      <h2>우리 반 교실</h2>
+      <div id="rooms"></div>
+      <div class="row"><input type="text" id="newcls" maxlength="20" placeholder="예: 2학년 3반" size="14"><button class="primary" id="addroom">반 만들기</button></div>
+      <p class="note">반마다 교실·QR·자리배치가 따로 있어요. 수업이 끝나면 문을 닫아 두면 아무도 들어와 기록을 남길 수 없어요.</p>
+    </section>
+
+    <section>
+      <h2>프로필 · 학교</h2>
+      <div class="row">
+        <label>표시 이름 <input type="text" id="p-name" maxlength="20" size="10" placeholder="김○○"></label>
+        <label>학교 <input type="text" id="p-school" maxlength="30" size="16" placeholder="○○중학교"></label>
+      </div>
+      <p class="note">학생 화면 칠판에 "○○중학교 · 2학년 3반 · 김○○ 선생님"처럼 보여요.</p>
+    </section>
+
+    <section>
+      <h2>화면 꾸미기</h2>
+      <div class="row" id="themes">칠판 색</div>
+      <div class="row">
+        <label>칠판 제목 <input type="text" id="p-title" maxlength="30" size="14" placeholder="웹앱 놀이터"></label>
+        <label>한 줄 문구 <input type="text" id="p-sub" maxlength="60" size="28" placeholder="만들고, 실험하고, 써 보면서 배우는 시간."></label>
+      </div>
+      <div class="row">학생이 고를 캐릭터</div>
+      <div class="row avs" id="avs"></div>
+    </section>
+
+    <section>
+      <h2>메뉴 편집</h2>
+      <p class="note">칠판에 붙는 종이입니다. 주소는 https:// 로 시작해야 하고, 비워 두면 "준비 중"으로 보여요.</p>
+      <div id="apps"></div>
+      <button id="addapp">+ 메뉴 추가</button>
+    </section>
+
+    <section>
+      <button class="primary" id="save" style="font-size:22px;padding:6px 20px">설정 저장</button>
+      <span class="note"> 프로필·꾸미기·메뉴가 한 번에 저장되고, 학생 화면에 바로 반영돼요.</span>
+    </section>
+
+    <section>
+      <h2>계정</h2>
+      <p class="note" id="who"></p>
+      <button class="danger" id="wipe">내 데이터 모두 삭제</button>
+    </section>
+  </div>
+</div>
+
+<dialog id="qrdlg">
+  <h2 id="qr-title"></h2>
+  <div class="qr" id="qr"></div>
+  <p id="qr-url"></p>
+  <button id="qr-copy">주소 복사</button> <button id="qr-close">닫기 ✕</button>
+</dialog>
+
+<script src="qrcode.js"></script>
+<script src="common.js"></script>
+<script>
+const $ = id => document.getElementById(id), msg = t => $("msg").textContent = t;
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+let F = null, uid = "", pub = cleanPub(null), rooms = {}, gates = {};   // rooms: {코드: 반 이름}, gates: {코드: 열림 여부}
+
+// ---------- 그리기 ----------
+function renderSettings() {
+  $("p-name").value = pub.name; $("p-school").value = pub.school; $("p-title").value = pub.title; $("p-sub").value = pub.sub;
+  $("themes").replaceChildren("칠판 색", ...Object.entries(THEMES).map(([k, c]) =>
+    el("label", {}, el("input", {type: "radio", name: "theme", value: k, checked: pub.theme === k}), el("span", {className: "sw", style: `background:${c}`}))));
+  $("avs").replaceChildren(...AVATARS_ALL.map(a => el("label", {}, el("input", {type: "checkbox", value: a, checked: pub.avatars.includes(a)}), el("span", {textContent: a}))));
+  $("apps").replaceChildren(...pub.apps.map(appRow));
+  $("addapp").disabled = pub.apps.length >= MAX_APPS;
+}
+const appRow = a => el("div", {className: "app"},
+  el("input", {type: "text", value: a.emoji, maxLength: 12, ariaLabel: "이모지", placeholder: "📎"}),
+  el("input", {type: "text", value: a.title, maxLength: 20, ariaLabel: "제목", placeholder: "제목"}),
+  el("input", {type: "url", value: a.url, maxLength: 300, ariaLabel: "주소", placeholder: "https://"}),
+  el("input", {type: "text", value: a.desc, maxLength: 200, ariaLabel: "설명", placeholder: "설명"}),
+  el("button", {textContent: "✕", ariaLabel: "메뉴 삭제", onclick: e => { e.target.parentNode.remove(); $("addapp").disabled = false; }}));
+
+function renderRooms() {
+  const list = Object.entries(rooms);
+  $("rooms").replaceChildren(...(list.length ? list.map(([code, cls]) => {
+    const open = gates[code] !== false;
+    return el("div", {className: "room"},
+      el("b", {textContent: cls}), el("code", {textContent: code}),
+      el("span", {className: open ? "" : "closed", textContent: open ? "문 열림" : "🚪 문 닫힘"}),
+      el("button", {textContent: open ? "문 닫기" : "문 열기", onclick: () => setGate(code, !open)}),
+      el("button", {className: "primary", textContent: "QR", onclick: () => showQr(code, cls)}),
+      el("a", {className: "btn", href: `./?room=${code}`, target: "_blank", rel: "noopener", textContent: "교실 열기"}),
+      el("a", {className: "btn", href: `seat.html?room=${code}`, textContent: "자리배치"}),
+      el("button", {className: "danger", textContent: "삭제", onclick: e => confirmClick(e.target, () => delRoom(code))}));
+  }) : [el("p", {className: "note", textContent: "아직 반이 없어요. 아래에서 첫 반을 만들어 보세요."})]));
+  $("addroom").disabled = list.length >= MAX_ROOMS;
+}
+// 되돌릴 수 없는 동작은 한 번 더 눌러야 실행
+function confirmClick(btn, fn) {
+  if (btn.dataset.sure) return fn();
+  const old = btn.textContent; btn.dataset.sure = 1; btn.textContent = "정말요? 한 번 더";
+  setTimeout(() => { delete btn.dataset.sure; btn.textContent = old; }, 3000);
+}
+
+// ---------- 저장 ----------
+const run = async (fn, ok) => { try { msg("저장하는 중…"); await fn(); msg(ok); } catch (e) { console.warn(e); msg("저장하지 못했어요. 로그인 상태와 인터넷 연결을 확인해 주세요."); } };
+
+function readSettings() {   // 화면 입력 → 저장할 값. 잘못된 주소가 있으면 알려 주고 null
+  const apps = [...$("apps").children].map(r => { const [emoji, title, url, desc] = [...r.querySelectorAll("input")].map(i => i.value.trim()); return {emoji, title, url, desc}; }).filter(a => a.title);
+  const bad = apps.find(a => a.url && !httpsUrl(a.url));
+  if (bad) { msg(`"${bad.title}" 메뉴의 주소는 https:// 로 시작해야 해요.`); return null; }
+  const avatars = [...$("avs").querySelectorAll(":checked")].map(i => i.value);
+  if (avatars.length < 2) { msg("캐릭터는 2개 이상 골라 주세요."); return null; }
+  return cleanPub({name: $("p-name").value, school: $("p-school").value, title: $("p-title").value, sub: $("p-sub").value,
+    theme: (document.querySelector("[name=theme]:checked") || {}).value, avatars, apps});
+}
+$("save").onclick = () => { const v = readSettings(); if (v) run(async () => { await F.db.set(F.db.ref(F.d, "pub/" + uid), v); pub = v; renderSettings(); }, "설정을 저장했어요 ✓"); };
+$("addapp").onclick = () => { $("apps").append(appRow({emoji: "📎", title: "", url: "", desc: ""})); $("addapp").disabled = $("apps").children.length >= MAX_APPS; };
+
+const newCode = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => "abcdefghjkmnpqrstuvwxyz23456789"[b % 31]).join("");
+$("addroom").onclick = () => {
+  const cls = str($("newcls").value, 20);
+  if (!cls) return msg("반 이름을 적어 주세요. (예: 2학년 3반)");
+  run(async () => {
+    const {db, d} = F;
+    let code;
+    for (let i = 0; ; i++) {   // 코드가 이미 쓰이고 있으면(규칙이 거부) 다른 코드로 다시
+      code = newCode();
+      try { await db.set(db.ref(d, `rooms/${code}/owner`), uid); break; } catch (e) { if (i >= 3) throw e; }
+    }
+    await db.set(db.ref(d, `rooms/${code}/cls`), cls);
+    await db.set(db.ref(d, `mine/${uid}/${code}`), cls);
+    rooms[code] = cls; $("newcls").value = ""; renderRooms();
+  }, `${cls} 교실을 만들었어요 ✓ QR을 눌러 학생들에게 보여 주세요.`);
+};
+const setGate = (code, open) => run(async () => { await F.db.set(F.db.ref(F.d, `rooms/${code}/gate`), {open}); gates[code] = open; renderRooms(); }, open ? "교실 문을 열었어요 ✓" : "교실 문을 닫았어요 🚪");
+const delRoom = code => run(async () => {
+  await F.db.remove(F.db.ref(F.d, "rooms/" + code));
+  await F.db.remove(F.db.ref(F.d, `mine/${uid}/${code}`));
+  delete rooms[code]; try { localStorage.removeItem("class-seat-" + code); } catch {}
+  renderRooms();
+}, "반을 삭제했어요.");
+
+function showQr(code, cls) {
+  const url = roomUrl(code) + "#join";
+  $("qr-title").textContent = `${cls} 교실`; $("qr-url").textContent = url;
+  const q = qrcode(0, "M"); q.addData(url); q.make();
+  $("qr").innerHTML = q.createSvgTag({cellSize: 8, margin: 2, scalable: true});   // url은 고정 주소 + 영숫자 코드뿐
+  $("qr-copy").onclick = e => navigator.clipboard.writeText(url).then(() => e.target.textContent = "복사됨 ✓", () => e.target.textContent = "복사 실패");
+  $("qr-copy").textContent = "주소 복사";
+  $("qrdlg").showModal();
+}
+$("qr-close").onclick = () => $("qrdlg").close();
+
+// ---------- 로그인 ----------
+async function start(user) {
+  const {db, d} = F;
+  uid = user.uid;
+  $("gate").hidden = true; $("app").hidden = $("logout").hidden = false;
+  $("who").textContent = `${user.email || ""} 계정으로 로그인했어요. 로그인 정보는 Google·Firebase 인증에만 있고, 이 사이트 데이터에는 위에 적은 내용만 저장돼요.`;
+  msg("불러오는 중…");
+  const [p, m] = await Promise.all([db.get(db.ref(d, "pub/" + uid)), db.get(db.ref(d, "mine/" + uid))]);
+  pub = cleanPub(p.val());
+  if (!p.exists()) pub.name = str(user.displayName, 20);   // 처음이면 Google 이름을 기본값으로 (저장 전까지는 화면에만)
+  rooms = {}; for (const [code, cls] of Object.entries(m.val() || {})) if (/^[a-z0-9]{6}$/.test(code)) rooms[code] = str(cls, 20);
+  $("hello").textContent = pub.name ? pub.name + " 선생님" : "교무실";
+  renderSettings(); renderRooms();
+  msg(p.exists() ? "" : "처음 오셨네요! 프로필을 적고 '설정 저장'을 누른 뒤, 반을 만들어 보세요.");
+  await Promise.all(Object.keys(rooms).map(async c => { gates[c] = (await db.get(db.ref(d, `rooms/${c}/gate/open`))).val() !== false; }));
+  renderRooms();
+}
+$("login").onclick = async () => {
+  try { msg("Google 로그인 창을 확인해 주세요…"); F = await fb(); await F.au.signInWithPopup(F.auth, new F.au.GoogleAuthProvider()); }
+  catch (e) { console.warn(e); msg(e && e.code === "auth/popup-blocked" ? "팝업이 차단됐어요. 주소창의 팝업 허용을 눌러 주세요." : "로그인하지 못했어요. 다시 시도해 주세요."); }
+};
+$("logout").onclick = async () => { await F.au.signOut(F.auth); location.reload(); };
+$("wipe").onclick = e => confirmClick(e.target, () => run(async () => {
+  const {db, d} = F;
+  for (const c of Object.keys(rooms)) await db.remove(db.ref(d, "rooms/" + c));
+  await db.remove(db.ref(d, "mine/" + uid)); await db.remove(db.ref(d, "pub/" + uid));
+  rooms = {}; pub = cleanPub(null); renderSettings(); renderRooms();
+}, "반·설정을 모두 지웠어요. 로그인 계정 자체를 지우려면 관리자에게 요청해 주세요."));
+
+(async () => {
+  try {
+    F = await fb();
+    F.au.onAuthStateChanged(F.auth, u => { if (isTeacher(u)) start(u).catch(e => { console.warn(e); msg("불러오지 못했어요. 새로고침해 주세요."); }); });
+  } catch (e) { console.warn(e); msg("연결하지 못했어요. 인터넷 연결을 확인해 주세요."); }
+})();
+</script>
+</body>
+</html>

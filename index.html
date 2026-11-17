@@ -89,20 +89,21 @@ dialog p{font-size:21px;line-height:1.5;margin:8px 0 14px}
 @media(max-width:600px){.grid{grid-template-columns:repeat(2,1fr);gap:22px 14px}.card .em{font-size:42px}.card b{font-size:18px}}
 </style>
 <script src="qrcode.js"></script>
+<script src="common.js"></script>
 </head>
 <body>
 <div class="board" id="board">
   <canvas id="cv" aria-hidden="true"></canvas>
   <div class="top chalk">
-    <div class="logo">✳ MY LAB</div>
+    <div class="logo">✳ <span id="school">MY LAB</span></div>
     <div>
-      <div class="side"><span id="date"></span><br>주번 : 웹앱 <span id="count"></span>개</div>
-      <div class="links"><button id="joinbtn">출석하기</button><button id="qrbtn">QR 접속</button><button id="share">공유하기</button><a id="about" target="_blank" rel="noopener">더 알아보기 ↗</a></div>
+      <div class="side"><span id="date"></span><br><span id="cls">웹앱 놀이터</span></div>
+      <div class="links"><button id="joinbtn">출석하기</button><button id="qrbtn">QR 접속</button><button id="share">공유하기</button><a href="teacher.html">선생님 →</a></div>
     </div>
   </div>
   <div class="chalk">
-    <h1>오늘의 수업 : <u>웹앱 놀이터</u></h1>
-    <p class="sub">만들고, 실험하고, 써 보면서 배우는 시간. 종이를 눌러 열어 보세요.</p>
+    <h1>오늘의 수업 : <u id="title">웹앱 놀이터</u></h1>
+    <p class="sub" id="sub"></p>
   </div>
   <div class="grid" id="grid"></div>
   <p class="hint chalk">※ 빈 곳에는 분필로 낙서할 수 있어요 (마우스 드래그)</p>
@@ -142,44 +143,48 @@ dialog p{font-size:21px;line-height:1.5;margin:8px 0 14px}
 </dialog>
 
 <script>
-// ===== 여기만 고치면 됩니다 =====
-const SITE_URL  = "https://denemtia.github.io/class/";                    // 학생 접속 주소 (배포 후 입력, 비우면 현재 주소)
-const ABOUT_URL = "https://github.com/";   // "더 알아보기" 링크
-const APPS = [                              // url이 비어 있으면 "준비 중"으로 표시
-  {title:"자리배치 프로그램", tag:"선생님용", emoji:"🪑", color:"#a9c8f0", url:"seat.html", chips:["교실","자리 바꾸기","선생님용"], desc:"명단을 넣고 분단별 자리를 정하는 선생님용 프로그램입니다. 정한 자리는 아래 교실에 바로 보낼 수 있어요."},
-  {title:"수업", tag:"CLASS", emoji:"📖", color:"#f3d27a", url:"", chips:["수업"], desc:"수업에서 쓰는 자료와 활동이 올라올 자리입니다."},
-];
-// Firebase 웹 설정(공개값, 비밀 아님). 보안은 DB 규칙과 익명 로그인으로 지킴. 비우면 각자 자기 캐릭터만 보임
-const FIREBASE = {apiKey: "AIzaSyC6mT6KbaC02xbAyU4PtikM4HxJp_UOL7M", authDomain: "class-hub-85cff.firebaseapp.com", projectId: "class-hub-85cff", appId: "1:662011086407:web:64c2f6a93750303982d362",
-  databaseURL: "https://class-hub-85cff-default-rtdb.asia-southeast1.firebasedatabase.app"};
-const MAX_PLAYERS = 40;                    // 정원
+const MAX_PLAYERS = 40;                    // 반 정원
 const CHALKS = ["#f3f2e6", "#f6dc7a", "#f7a8b8", "#9fd0f0"];   // 분필 색
-// ================================
+const PAPERS = ["#f3d27a", "#a9c8f0", "#f5a9c0", "#9ad7b0", "#c9b6f2", "#f6b98a"];   // 메뉴 종이 색
 
-const $ = id => document.getElementById(id), n = APPS.length, pad = i => String(i + 1).padStart(2, "0");
+const $ = id => document.getElementById(id), pad = i => String(i + 1).padStart(2, "0");
 const dlg = $("dlg");
-$("about").href = ABOUT_URL;
-$("count").textContent = n;
 $("date").textContent = new Date().toLocaleDateString("ko-KR", {month: "long", day: "numeric", weekday: "long"});
 
-APPS.forEach((a, i) => {
-  const b = document.createElement("button");
-  b.className = "card";
-  b.style.setProperty("--c", a.color);
-  b.innerHTML = `<span class="no">${pad(i)}</span><span class="em">${a.emoji}</span><b>${a.title}</b><small>${a.tag}</small>`;
-  b.onclick = () => show(i);
-  $("grid").append(b);
-});
+// 선생님 설정 적용: 학교·반·제목·문구·칠판 색·캐릭터·메뉴. 선생님이 쓴 글은 전부 textContent로만 넣음
+let APPS = [], avatars = AVATARS_ALL.slice(0, 8);
+function applySettings(pub, cls) {
+  const p = cleanPub(pub);
+  $("school").textContent = p.school || "MY LAB";
+  $("cls").textContent = [str(cls, 20), p.name && p.name + " 선생님"].filter(Boolean).join(" · ") || "웹앱 놀이터";
+  $("title").textContent = p.title || "웹앱 놀이터";
+  $("sub").textContent = p.sub || (ROOM ? "만들고, 실험하고, 써 보면서 배우는 시간." : "선생님께 받은 QR이나 주소로 들어오면 우리 반 교실이 열려요.");
+  document.documentElement.style.setProperty("--board", THEMES[p.theme]);
+  avatars = p.avatars; APPS = p.apps;
+  $("avs").replaceChildren(...avatars.map((a, i) => {
+    const l = document.createElement("label"), r = document.createElement("input"), sp = document.createElement("span");
+    r.type = "radio"; r.name = "av"; r.value = a; r.checked = profile ? profile.avatar === a : !i; sp.textContent = a;
+    l.append(r, sp); return l;
+  }));
+  if (!$("avs").querySelector(":checked")) $("avs").querySelector("input").checked = true;
+  $("grid").replaceChildren(...APPS.map((a, i) => {
+    const b = document.createElement("button"), mk = (tag, cls, t) => Object.assign(document.createElement(tag), {className: cls, textContent: t});
+    b.className = "card"; b.style.setProperty("--c", PAPERS[i % PAPERS.length]);
+    b.append(mk("span", "no", pad(i)), mk("span", "em", a.emoji), mk("b", "", a.title));
+    b.onclick = () => show(i);
+    return b;
+  }));
+}
 
 // 상세
 let cur = 0;
 function show(i) {
+  const n = APPS.length; if (!n) return;
   cur = (i + n) % n;
   const a = APPS[cur];
   $("d-emoji").textContent = a.emoji;
-  $("d-tag").textContent = a.tag; $("d-pos").textContent = `${cur + 1}교시 / ${n}`;
+  $("d-tag").textContent = ""; $("d-pos").textContent = `${cur + 1}교시 / ${n}`;
   $("d-title").textContent = a.title; $("d-desc").textContent = a.desc;
-  $("d-chips").replaceChildren(...a.chips.map(c => Object.assign(document.createElement("span"), {textContent: c})));
   const o = $("d-open");
   o.textContent = a.url ? "웹앱 열기 ↗" : "준비 중 · 곧 공개됩니다";
   a.url ? o.href = a.url : o.removeAttribute("href");
@@ -199,7 +204,7 @@ $("share").onclick = e => navigator.clipboard.writeText(location.href)
 // QR 접속 (프로젝터에 띄워 학생들이 스캔)
 const qrdlg = $("qrdlg");
 $("qrbtn").onclick = () => {
-  const url = (SITE_URL || location.href.split("#")[0]) + "#join";   // #join → 접속하면 출석 창이 바로 뜸
+  const url = (ROOM ? roomUrl(ROOM) : SITE_URL) + "#join";   // #join → 접속하면 출석 창이 바로 뜸
   $("qr-url").textContent = url;
   if (window.qrcode) { const q = qrcode(0, "M"); q.addData(url); q.make(); $("qr").innerHTML = q.createSvgTag({cellSize: 8, margin: 2, scalable: true}); }
   else $("qr").textContent = "QR을 불러오지 못했습니다. 아래 주소로 접속하세요.";
@@ -210,7 +215,7 @@ qrdlg.onclick = e => e.target === qrdlg && qrdlg.close();
 
 // ===== 3D 교실: 출석 → 캐릭터 → 이동·착석 =====
 // 좌표는 모든 기기가 같은 논리 크기(W×H)를 쓰고, 화면에는 CSS로 축소·기울여 보여 줌
-const AVATARS = ["🧑‍🎓", "🐱", "🐶", "🐰", "🦊", "🐻", "🐧", "🤖"], SPEED = 200, W = 520, H = 720, TILT = 45, CW = 200;
+const AVATARS = AVATARS_ALL, SPEED = 200, W = 520, H = 720, TILT = 45, CW = 200;
 let SEATS = [];                    // 의자 위치(논리 좌표). layout()이 채움
 let plan = {G: 0, seats: []};      // 선생님이 자리배치 페이지에서 보낸 배치: 분단 수 G, seats[자리] = 출석번호(0 = 빈자리)
 const room = $("room"), fl = $("fl"), joindlg = $("joindlg"), clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -222,7 +227,6 @@ let me = null, profile = null, net = null, myId;
 try { myId = localStorage.getItem("class-id") || crypto.randomUUID(); localStorage.setItem("class-id", myId); }
 catch { myId = Math.random().toString(36).slice(2); }
 const keys = new Set(), MOVE = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "a", "d", "w", "s"];
-$("avs").innerHTML = AVATARS.map((a, i) => `<label><input type="radio" name="av" value="${a}" ${i ? "" : "checked"}><span>${a}</span></label>`).join("");
 
 // 저장소·네트워크에서 온 값은 믿지 않고 여기서 걸러 냄
 const clean = v => !v || typeof v.name !== "string" || !v.name.trim() || !AVATARS.includes(v.avatar) ? null : {
@@ -289,6 +293,7 @@ $("joinform").onsubmit = e => {
 };
 $("joinbtn").onclick = () => joindlg.showModal();
 $("j-skip").onclick = () => joindlg.close();
+applySettings(null, "");
 let saved = null;
 try { saved = clean(JSON.parse(localStorage.getItem("class-me"))); } catch {}
 if (saved) enter(saved); else if (location.hash === "#join") joindlg.showModal();
@@ -332,28 +337,36 @@ requestAnimationFrame(function tick(t) {
   requestAnimationFrame(tick);
 });
 
-// 실시간 동기화 (Firebase Realtime Database). 창을 닫으면 내 기록은 자동 삭제됨
+// 실시간 동기화 — 주소에 교실 코드(?room=)가 있을 때만 연결. 창을 닫으면 내 기록은 자동 삭제됨
 // 보안: 기기마다 익명 로그인 → 자기 기록(players/내 uid)만 쓸 수 있고, 로그인 없이는 읽지도 못함(DB 규칙)
-if (FIREBASE) (async () => {
+if (ROOM) (async () => {
   try {
-    const V = "https://www.gstatic.com/firebasejs/10.12.2/";
-    const [{initializeApp}, db, au] = await Promise.all([import(V + "firebase-app.js"), import(V + "firebase-database.js"), import(V + "firebase-auth.js")]);
-    const app = initializeApp(FIREBASE), d = db.getDatabase(app);
-    const uid = (await au.signInAnonymously(au.getAuth(app))).user.uid;
+    const {db, au, auth, d} = await fb();
+    const uid = (auth.currentUser || (await au.signInAnonymously(auth)).user).uid;   // 선생님이 로그인한 채로 열면 그 계정 그대로
     if (me) { players.delete(myId); players.set(uid, me); }
     myId = uid;
-    const all = db.ref(d, "rooms/main/players"), mine = db.child(all, myId), quiet = p => p.catch(() => {});
+    const R = p => db.ref(d, `rooms/${ROOM}/${p}`);
+    const owner = (await db.get(R("owner"))).val();
+    if (!owner) { $("online").textContent = "없는 교실 주소예요. 선생님께 다시 확인해 주세요."; return; }
+    // 선생님 설정(공개)과 반 이름
+    let pub = null, cls = "";
+    db.onValue(db.ref(d, "pub/" + owner), s => { pub = s.val(); applySettings(pub, cls); });
+    db.onValue(R("cls"), s => { cls = s.val() || ""; applySettings(pub, cls); });
+    const all = R("players"), mine = db.child(all, myId), quiet = p => p.catch(() => {});
     const state = () => ({x: Math.round(me.gx), y: Math.round(me.gy), seat: me.seat});
     let sent = "", open = true;
     db.onChildAdded(all, s => s.key !== myId && upsert(s.key, s.val()));
     db.onChildChanged(all, s => s.key !== myId && upsert(s.key, s.val()));
     db.onChildRemoved(all, s => s.key !== myId && drop(s.key));
     // 선생님 자리배치 (번호만 들어 있음)
-    db.onValue(db.ref(d, "rooms/main/plan/G"), s => { plan.G = clamp(Math.round(+s.val()) || 0, 0, 7); layout(); });
-    db.onValue(db.ref(d, "rooms/main/plan/seats"), s => { const v = s.val() || {}; plan.seats = Array.from({length: 42}, (_, i) => clamp(Math.round(+v[i]) || 0, 0, 99)); layout(); });
+    db.onValue(R("plan"), s => {
+      const v = s.val() || {}, seats = v.seats || {};
+      plan = {G: clamp(Math.round(+v.G) || 0, 0, 7), seats: Array.from({length: 42}, (_, i) => clamp(Math.round(+seats[i]) || 0, 0, 99))};
+      layout();
+    });
     net = {put() { if (me && open) { quiet(db.onDisconnect(mine).remove()); quiet(db.set(mine, {...profile, ...state()})); } }};
     // 선생님이 교실 문을 닫으면 아무도 기록을 쓸 수 없음(규칙에서도 막음) → 화면에 알리고 혼자 모드로
-    db.onValue(db.ref(d, "rooms/main/gate/open"), s => {
+    db.onValue(R("gate/open"), s => {
       open = s.val() !== false;
       $("online").style.color = open ? "" : "#b0452f";
       if (open) { $("online").textContent = ""; count(); net.put(); } else $("online").textContent = "🚪 교실 문이 닫혀 있어요 (혼자 연습)";
